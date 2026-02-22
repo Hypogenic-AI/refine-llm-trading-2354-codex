@@ -1,0 +1,22 @@
+idea:
+  title: Refining LLM Trading
+  domain: artificial_intelligence
+  hypothesis: 'LLM agents may perform better in finance by making longer-term trading
+    decisions rather than optimizing for short-term, day-to-day profit.
+
+    '
+  background:
+    description: 'Current attempts to make LLM agents for finance tend to optimize
+      short term profit by making day-to-day trading decisions. Would LLM''s perform
+      better making longer-term trading decisions?
+
+      '
+  metadata:
+    author: Erik Ely
+    source: IdeaHub
+    source_url: https://hypogenic.ai/ideahub/idea/874afe0s6hwPCkOvTw4Q
+    idea_id: refining_llm_trading_20260222_013537_f6dadeeb
+    created_at: '2026-02-22T01:35:37.083655'
+    status: submitted
+    github_repo_name: refine-llm-trading-2354-codex
+    github_repo_url: https://github.com/Hypogenic-AI/refine-llm-trading-2354-codex
