@@ -1,0 +1,54 @@
+{
+  "best_by_sortino": "momentum_weekly",
+  "strategies": [
+    {
+      "strategy": "momentum_weekly",
+      "cum_return": 0.4526498765586302,
+      "sortino": 2.9801105780544233,
+      "max_drawdown": -0.1612695735252503,
+      "turnover": 16.933333333333334
+    },
+    {
+      "strategy": "llm_weekly_posaware",
+      "cum_return": 0.4261425302654067,
+      "sortino": 2.8352437296392226,
+      "max_drawdown": -0.1518396903111603,
+      "turnover": 24.2
+    },
+    {
+      "strategy": "llm_weekly_memoryless",
+      "cum_return": 0.4274430138825498,
+      "sortino": 2.730543973943528,
+      "max_drawdown": -0.16602312883061088,
+      "turnover": 37.233333333333334
+    },
+    {
+      "strategy": "llm_monthly_posaware",
+      "cum_return": 0.3804064159455671,
+      "sortino": 2.460316323315389,
+      "max_drawdown": -0.1346826849183791,
+      "turnover": 12.033333333333333
+    },
+    {
+      "strategy": "llm_daily_posaware",
+      "cum_return": 0.30905313393330225,
+      "sortino": 2.165018778102301,
+      "max_drawdown": -0.14324119794793277,
+      "turnover": 59.49333333333334
+    },
+    {
+      "strategy": "equal_weight",
+      "cum_return": 0.28414054855136883,
+      "sortino": 1.8573821547836593,
+      "max_drawdown": -0.189700643800368,
+      "turnover": 0.0
+    },
+    {
+      "strategy": "invvol_weekly",
+      "cum_return": 0.22594984236264204,
+      "sortino": 1.7189467138468224,
+      "max_drawdown": -0.1752386698137821,
+      "turnover": 6.368746918077589
+    }
+  ]
+}

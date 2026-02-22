@@ -1,0 +1,10 @@
+PDF: papers/2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in_.pdf
+Total pages: 15
+Pages per chunk: 3
+
+Chunks:
+  2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in__chunk_001.pdf: pages 1-3
+  2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in__chunk_002.pdf: pages 4-6
+  2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in__chunk_003.pdf: pages 7-9
+  2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in__chunk_004.pdf: pages 10-12
+  2505.07078v5_Can_LLM_based_Financial_Investing_Strategies_Outperform_the_Market_in__chunk_005.pdf: pages 13-15

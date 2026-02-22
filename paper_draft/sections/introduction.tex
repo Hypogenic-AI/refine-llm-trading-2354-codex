@@ -1,0 +1,22 @@
+\section{Introduction}
+\label{sec:introduction}
+
+LLM agents can produce coherent portfolio rationales, but many reported gains come from dense daily decisions that are costly to execute and hard to trust out of sample \citep{chen2025stockbench,li2025finsaber,benhenda2026lookaheadbench}. Our main question is simple: does an LLM trade better when we ask it to act less often?
+
+\para{Why this matters.} In practice, turnover and drawdown matter as much as raw return. If lower-frequency LLM control improves risk-adjusted performance, then LLM agents become more realistic for deployment and benchmarking.
+
+\para{What is missing in prior work?} Existing finance-agent papers cover memory, multi-agent workflows, and contamination-aware evaluation \citep{liu2025finpos,zhang2023finmem,xiao2024tradingagents,huang2024finagent}. However, controlled studies that isolate decision cadence while fixing model, data, and prompt family are still limited. This leaves an attribution gap: are observed gains from better reasoning, or from a better action horizon?
+
+\para{Our approach.} We run a cadence-controlled backtest with real \gptmodel calls on daily U.S. equities data (15 tickers, 2010--2026). We compare daily, weekly, and monthly LLM rebalancing under the same lagged technical features, long-only constraints, and 35\% per-asset cap. We also test position-aware versus memoryless prompting at weekly cadence.
+
+\para{What do we find?} Weekly LLM control improves Sortino from 2.165 (daily) to 2.835 and reduces turnover from 59.49 to 24.20 at 5 bps cost. Monthly also beats daily on risk-adjusted metrics with even lower turnover (12.03). Weekly versus daily is significant under Wilcoxon testing ($p=0.0272$). A weekly momentum rule still ranks first overall, which clarifies the current boundary of LLM value.
+
+Our contributions are:
+\begin{itemize}
+    \item We isolate decision cadence as the independent variable in an apples-to-apples LLM trading experiment.
+    \item We show that weekly and monthly LLM control improve practical risk-adjusted outcomes and trading stability versus daily LLM control.
+    \item We provide a position-awareness ablation showing similar returns but lower turnover and better drawdown than memoryless weekly prompting.
+    \item We release a reproducible evaluation artifact with metrics, statistical tests, and cost-sensitivity outputs.
+\end{itemize}
+
+The rest of the paper is organized as follows. \secref{sec:related} summarizes prior work, \secref{sec:method} describes the setup, \secref{sec:results} presents quantitative findings, and \secref{sec:discussion} discusses implications and limits.

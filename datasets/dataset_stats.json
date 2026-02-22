@@ -1,0 +1,52 @@
+{
+  "market_daily_ohlcv_2010_2026": {
+    "rows": 60660,
+    "tickers": [
+      "AAPL",
+      "CAT",
+      "DIS",
+      "GS",
+      "IBM",
+      "JNJ",
+      "JPM",
+      "KO",
+      "MCD",
+      "MSFT",
+      "NKE",
+      "NVDA",
+      "SPY",
+      "V",
+      "WMT"
+    ],
+    "date_min": "2010-01-04",
+    "date_max": "2026-01-30",
+    "columns": [
+      "Date",
+      "Open",
+      "High",
+      "Low",
+      "Close",
+      "Adj Close",
+      "Volume",
+      "ticker"
+    ],
+    "file": "datasets/market_daily_ohlcv_2010_2026/prices.parquet"
+  },
+  "twitter_financial_news_sentiment": {
+    "rows_train": 9543,
+    "rows_validation": 2388,
+    "columns": [
+      "text",
+      "label"
+    ],
+    "example_labels": [
+      0
+    ],
+    "location": "datasets/twitter_financial_news_sentiment/hf_dataset",
+    "labels": [
+      0,
+      1,
+      2
+    ]
+  }
+}

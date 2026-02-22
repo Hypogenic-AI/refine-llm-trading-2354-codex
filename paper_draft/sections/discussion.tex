@@ -1,0 +1,12 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\para{Interpretation.} The main signal is consistent with a noise-chasing account: daily control offers more chances to react, but in this setting it mostly increases churn. Weekly and monthly cadences appear to regularize behavior by forcing the agent to commit longer, improving net performance after costs.
+
+\para{Why position-awareness helps.} Weekly memoryless and position-aware variants have similar cumulative return, but memoryless trading turns over much more. This suggests that adding explicit portfolio-state context mainly improves execution stability rather than directional alpha.
+
+\para{Limits of current LLM trading.} A transparent weekly momentum rule still outperforms all LLM variants in our test window. This matters: better prompting cadence improves LLM behavior, but does not yet replace tuned quantitative baselines for absolute performance.
+
+\para{Limitations.} We study one model family (\gptmodel), one equity universe (15 U.S. tickers), and one recent out-of-sample window. We model frictions with proportional costs only, without detailed slippage or market impact. Bootstrap intervals for Sortino differences are wide, so effect magnitude needs more data.
+
+\para{Broader implications.} For benchmark design, cadence should be a standard ablation axis in financial LLM papers. For deployment, medium-horizon LLM control is more credible than day-to-day reallocation because it lowers turnover and operational burden.

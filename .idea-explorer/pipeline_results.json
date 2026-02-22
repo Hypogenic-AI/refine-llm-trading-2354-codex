@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "stages": {
+    "resource_finder": {
+      "success": true,
+      "completion_marker": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/.resource_finder_complete",
+      "outputs": {
+        "literature_review": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/literature_review.md",
+        "resources_catalog": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/resources.md",
+        "papers_dir": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/papers",
+        "datasets_dir": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/datasets",
+        "code_dir": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/code"
+      },
+      "log_file": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/logs/resource_finder_codex.log",
+      "transcript_file": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/logs/resource_finder_codex_transcript.jsonl",
+      "elapsed_time": 453.7168822288513
+    },
+    "experiment_runner": {
+      "success": true,
+      "return_code": 0,
+      "elapsed_time": 885.2347416877747,
+      "log_file": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/logs/execution_codex.log",
+      "transcript_file": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex/logs/execution_codex_transcript.jsonl"
+    }
+  },
+  "work_dir": "/data/hypogenicai/workspaces/refine-llm-trading-2354-codex"
+}

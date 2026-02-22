@@ -1,0 +1,16 @@
+{
+  "seed": 42,
+  "model": "gpt-4.1",
+  "temperature": 0.0,
+  "max_weight": 0.35,
+  "top_k_hint": 5,
+  "tc_bps": 5.0,
+  "test_start": "2025-01-02",
+  "test_end": "2026-01-30",
+  "price_path": "datasets/market_daily_ohlcv_2010_2026/prices.parquet",
+  "output_dir": "results",
+  "figures_dir": "figures",
+  "cache_path": "results/llm_cache.json",
+  "n_bootstrap": 1000,
+  "bootstrap_block": 5
+}

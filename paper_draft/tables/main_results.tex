@@ -1,0 +1,20 @@
+\begin{table*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Method & CumReturn & AnnRet & Sharpe & Sortino & MaxDD & Turnover \\
+\midrule
+\momwk & {\bf 0.4527} & {\bf 0.4169} & {\bf 2.2372} & {\bf 2.9801} & -0.1613 & 16.9333 \\
+\posaware & 0.4261 & 0.3928 & 2.0966 & 2.8352 & -0.1518 & 24.2000 \\
+\memoryless & 0.4274 & 0.3940 & 2.0820 & 2.7305 & -0.1660 & 37.2333 \\
+\monthlyllm & 0.3804 & 0.3511 & 1.8274 & 2.4603 & {\bf -0.1347} & 12.0333 \\
+\dailyllm & 0.3091 & 0.2858 & 1.6095 & 2.1650 & -0.1432 & 59.4933 \\
+\ew & 0.2841 & 0.2629 & 1.4577 & 1.8574 & -0.1897 & {\bf 0.0000} \\
+\invvolwk & 0.2260 & 0.2094 & 1.3125 & 1.7189 & -0.1752 & 6.3687 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Main results on 2025-01-02 to 2026-01-30 with 5 bps transaction costs. Higher is better except MaxDD where values closer to zero are better. Best values are in bold.}
+\label{tab:main_results}
+\end{table*}

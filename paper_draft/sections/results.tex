@@ -1,0 +1,37 @@
+\section{Results}
+\label{sec:results}
+
+\para{Main comparison.} \Tabref{tab:main_results} reports the primary 5 bps results. Among LLM variants, \posaware is best on risk-adjusted return (Sortino 2.8352, Sharpe 2.0966), while \monthlyllm has the lowest drawdown (-0.1347) and lower turnover than weekly. Daily LLM is consistently weaker and has the highest turnover (59.4933).
+
+\input{tables/main_results}
+
+\para{Cadence effect within LLMs.} Weekly vs daily improves Sortino by +0.6702 and cuts turnover by 35.2933. Monthly vs daily improves Sortino by +0.2953 and cuts turnover by 47.4600. These results support the claim that slower control reduces churn and improves practical risk-adjusted behavior.
+
+\para{Statistical tests.} Weekly position-aware versus daily position-aware yields a significant Wilcoxon signed-rank result ($p=0.0272$) on paired daily returns, with mean daily difference $+3.18\times10^{-4}$. The bootstrap 95\% CI for Sortino difference is wide ([-0.355, 2.073]), indicating directional improvement with moderate uncertainty. Monthly versus daily is not significant ($p=0.4382$). Weekly position-aware versus weekly memoryless is also not significant on daily returns ($p=0.5787$), suggesting the main gain comes from cadence rather than per-day return distribution shifts.
+
+\para{Ablation on position-awareness.} \posaware and \memoryless reach similar cumulative return (0.4261 vs 0.4274), but position-awareness lowers drawdown (-0.1518 vs -0.1660) and turnover (24.20 vs 37.23). This supports position continuity as a stability mechanism.
+
+\para{Comparison to non-LLM baselines.} \momwk remains best overall (Sortino 2.9801, Sharpe 2.2372), outperforming all LLM variants in this window. Still, weekly and monthly LLM beat \ew and \invvolwk on major risk-adjusted metrics.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/equity_curves.png}
+\caption{Equity curves for all methods on the 2025-01-02 to 2026-01-30 test period. Weekly and monthly LLM policies stay above daily LLM for most of the window, while weekly momentum remains highest overall.}
+\label{fig:equity}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/drawdown_curves.png}
+\caption{Drawdown trajectories. Monthly LLM has the shallowest trough among LLM variants, and weekly position-aware avoids some deeper drops seen in weekly memoryless.}
+\label{fig:drawdown}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/return_boxplot.png}
+\caption{Distribution of daily returns. Distribution overlap explains small effect-size estimates even when cumulative and turnover outcomes diverge materially.}
+\label{fig:boxplot}
+\end{figure}
+
+\para{Transaction-cost robustness.} Under 0, 5, and 10 bps settings, weekly and monthly LLM policies remain above daily LLM in key risk-adjusted metrics. This pattern suggests the cadence advantage is not an artifact of one cost assumption.

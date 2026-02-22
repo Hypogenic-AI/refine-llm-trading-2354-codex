@@ -1,0 +1,831 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .codex/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# REPORT: Refining LLM Trading
+
+## 1. Executive Summary
+This study tests whether LLM trading agents perform better when making longer-horizon decisions instead of day-to-day reallocation. Using real GPT-4.1 API calls on US equity daily data (15 tickers, 2010-2026), we compared daily, weekly, and monthly LLM portfolio policies under identical features and constraints.
+
+Key finding: longer-horizon LLM policies outperformed daily LLM on risk-adjusted metrics in this test period (2025-01-02 to 2026-01-30), with weekly cadence showing the strongest LLM result (Sortino 2.84 vs 2.17 daily, lower drawdown, much lower turnover).
+
+Practical implication: for LLM-based portfolio control, reducing action frequency appears to improve stability and net performance under transaction costs, though in this setup a non-LLM momentum baseline still ranked best overall.
+
+## 2. Goal
+### Hypothesis
+LLM agents may perform better in finance by making longer-term trading decisions rather than optimizing short-term day-to-day profit.
+
+### Why Important
+Most LLM trading papers report short-horizon decisions. Prior work in this workspace (StockBench, FinPos, FINSABER, Look-Ahead-Bench) indicates short-window gains may not survive realistic evaluation. A direct cadence-controlled experiment is needed.
+
+### Problem Solved
+This work isolates decision cadence while holding model, dataset, and prompt family constant, producing an apples-to-apples estimate of short vs long horizon behavior.
+
+### Expected Impact
+Guides benchmark design and practical deployment: lower-frequency LLM control may reduce churn and improve deployability.
+
+## 3. Data Construction
+### Dataset Description
+Primary market dataset:
+- Source: Yahoo Finance via pre-gathered dataset `datasets/market_daily_ohlcv_2010_2026/prices.parquet`
+- Size: 60,660 rows, 15 tickers, date range 2010-01-04 to 2026-01-30
+- Fields: `Date, Open, High, Low, Close, Adj Close, Volume, ticker`
+
+Auxiliary sentiment dataset (not used directly in allocation features, retained for future extension):
+- Source: HuggingFace `zeroshot/twitter-financial-news-sentiment`
+- Size: train 9,543 / validation 2,388
+- Fields: `text, label`
+
+### Example Samples
+Market sample rows:
+
+| Date | Open | High | Low | Close | Adj Close | Volume | ticker |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 2018-12-10 | 178.60 | 179.84 | 174.68 | 178.83 | 151.93 | 4,528,300 | GS |
+| 2014-09-26 | 99.44 | 100.64 | 99.24 | 100.38 | 74.99 | 2,935,900 | CAT |
+| 2022-08-19 | 351.00 | 351.86 | 347.50 | 349.27 | 319.40 | 1,812,300 | GS |
+
+Sentiment sample rows:
+
+| split | text (truncated) | label |
+|---|---|---:|
+| train | `$BYND - JPMorgan reels in expectations on Beyond Meat ...` | 0 |
+| train | `$CCL $RCL - Nomura points to bookings weakness ...` | 0 |
+| validation | `$ALLY - Ally Financial pulls outlook ...` | 0 |
+
+### Data Quality
+From `results/data_quality.json`:
+- Missing values (raw OHLCV): 0%
+- Duplicates: 0
+- Feature missingness only from rolling-window warmup:
+  - `ret_1d`: 0.049%
+  - `ret_5d`: 0.148%
+  - `ret_21d`: 0.544%
+  - `vol_21d`: 0.544%
+  - `mom_63d`: 1.583%
+  - `dd_63d`: 1.558%
+
+### Preprocessing Steps
+1. Renamed `Date -&gt; date`, `Adj Close -&gt; adj_close`; sorted by (`ticker`, `date`).
+2. Computed lagged technical features per ticker:
+   - `ret_1d`, `ret_5d`, `ret_21d`, `vol_21d`, `mom_63d`, `dd_63d`.
+3. Shifted all features by 1 day to prevent look-ahead.
+4. Built return panel from `adj_close.pct_change()` for backtesting.
+
+### Train/Val/Test Splits
+- Historical context: full 2010-2026 available.
+- Main evaluation window (fixed test): 2025-01-02 to 2026-01-30 (270 trading days).
+- Rationale: keep enough daily decisions for cadence comparison while staying in recent out-of-sample period.
+
+## 4. Experiment Description
+### Methodology
+#### High-Level Approach
+At each rebalance date, the strategy receives lagged per-ticker features and outputs long-only weights. We compare:
+- LLM daily rebalance (short horizon)
+- LLM weekly rebalance
+- LLM monthly rebalance
+- Weekly position-aware vs weekly memoryless LLM ablation
+- Non-LLM baselines
+
+#### Why This Method?
+It isolates cadence as the independent variable while controlling model and input schema. This directly targets the user’s question.
+
+Alternatives considered:
+- Full RL retraining per horizon: rejected for this session due longer training cycle and confounded architecture changes.
+- Multi-model comparison first: deferred; cadence isolation prioritized.
+
+### Implementation Details
+#### Tools and Libraries
+- Python 3.12.2
+- pandas 2.3.1
+- numpy 2.3.5
+- scipy 1.17.0
+- matplotlib 3.10.8
+- seaborn 0.13.2
+- openai 2.21.0
+
+#### Algorithms/Models
+- LLM: `gpt-4.1` via OpenAI API (real model calls, cached)
+- Baselines:
+  - Equal-weight
+  - Momentum top-k (63-day momentum, weekly)
+  - Inverse-volatility parity (21-day vol, weekly)
+
+#### Hyperparameters
+| Parameter | Value | Selection Method |
+|---|---:|---|
+| model | gpt-4.1 | fixed SOTA API model |
+| temperature | 0.0 | deterministic reproducibility |
+| max_weight_per_asset | 0.35 | risk cap |
+| top_k_hint | 5 | portfolio concentration prior |
+| transaction_cost | 5 bps | realistic friction baseline |
+| bootstrap_samples | 1000 | standard CI stability |
+| bootstrap_block | 5 days | preserves short autocorrelation |
+
+#### Training / Analysis Pipeline
+1. Compute lagged features.
+2. At rebalance date, request JSON weights from LLM.
+3. Apply transaction cost on rebalance day using turnover.
+4. Hold weights until next rebalance.
+5. Aggregate daily strategy returns and compute metrics/statistics.
+
+### Experimental Protocol
+#### Reproducibility Information
+- Number of runs: 1 primary + repeated reruns for reproducibility and cost sensitivity
+- Seeds: 42 (primary), deterministic temperature 0
+- Hardware: 2x NVIDIA RTX 3090 (24GB each), API-based workload (GPU unused for model inference)
+- Execution profile: ~391 LLM rebalances in main run
+- LLM token usage (main run): 752,721 total tokens (`results/usage_summary.json`)
+
+#### Evaluation Metrics
+- `cum_return`: total portfolio growth over test.
+- `ann_return`: geometric annualized return.
+- `ann_vol`: annualized daily-return volatility.
+- `sharpe`: mean/std annualized.
+- `sortino`: mean/downside-std annualized.
+- `max_drawdown`: worst peak-to-trough drawdown.
+- `calmar`: annualized return / |max drawdown|.
+- `turnover`: sum absolute weight changes across rebalances.
+
+### Raw Results
+#### Main table (5 bps transaction costs)
+| Method | CumReturn | AnnRet | Sharpe | Sortino | MaxDD | Turnover |
+|---|---:|---:|---:|---:|---:|---:|
+| momentum_weekly | 0.4527 | 0.4169 | 2.2372 | 2.9801 | -0.1613 | 16.9333 |
+| llm_weekly_posaware | 0.4261 | 0.3928 | 2.0966 | 2.8352 | -0.1518 | 24.2000 |
+| llm_weekly_memoryless | 0.4274 | 0.3940 | 2.0820 | 2.7305 | -0.1660 | 37.2333 |
+| llm_monthly_posaware | 0.3804 | 0.3511 | 1.8274 | 2.4603 | -0.1347 | 12.0333 |
+| llm_daily_posaware | 0.3091 | 0.2858 | 1.6095 | 2.1650 | -0.1432 | 59.4933 |
+| equal_weight | 0.2841 | 0.2629 | 1.4577 | 1.8574 | -0.1897 | 0.0000 |
+| invvol_weekly | 0.2260 | 0.2094 | 1.3125 | 1.7189 | -0.1752 | 6.3687 |
+
+#### Robustness: transaction cost sensitivity
+Weekly/monthly LLM stayed above daily LLM at 0, 5, and 10 bps (`results/metrics_tc0.csv`, `results/metrics_tc5.csv`, `results/metrics_tc10.csv`).
+
+#### Output Locations
+- Results JSON: `results/metrics.json`
+- Metrics CSV: `results/metrics.csv`
+- Daily returns: `results/daily_returns.csv`
+- Statistical tests: `results/stat_tests.json`
+- Usage summary: `results/usage_summary.json`
+- Plots: `figures/equity_curves.png`, `figures/drawdown_curves.png`, `figures/return_boxplot.png`
+
+## 5. Result Analysis
+### Key Findings
+1. **Longer-horizon LLM beats daily LLM on risk-adjusted performance**.
+   - Weekly LLM Sortino 2.835 vs Daily LLM 2.165.
+   - Monthly LLM Sortino 2.460 vs Daily LLM 2.165.
+2. **Daily LLM is much higher turnover**.
+   - Daily turnover 59.49 vs Weekly 24.20 vs Monthly 12.03.
+3. **Position-awareness mainly helps stability, not raw return**.
+   - Weekly pos-aware MDD -0.1518 vs memoryless -0.1660.
+   - Weekly pos-aware turnover 24.20 vs memoryless 37.23.
+4. **A tuned non-LLM baseline (momentum weekly) still ranked highest** in this window.
+
+### Hypothesis Testing Results
+Null hypothesis H0: no difference between long-horizon and daily LLM outcomes.
+
+From `results/stat_tests.json`:
+- Weekly pos-aware vs Daily pos-aware:
+  - Wilcoxon p = 0.0272 (significant at 0.05)
+  - Mean daily diff = +0.000318
+  - Sortino diff bootstrap CI95 = [-0.355, 2.073] (wide, includes 0)
+  - Cliff’s delta = 0.0123 (small effect)
+- Monthly pos-aware vs Daily pos-aware:
+  - Wilcoxon p = 0.4382 (not significant)
+- Weekly pos-aware vs Weekly memoryless:
+  - Wilcoxon p = 0.5787 (not significant on daily return level)
+
+Interpretation:
+- Evidence supports weekly over daily on rank-based daily return test and clear practical metrics (Sortino/turnover).
+- Monthly improvement is practical but not statistically significant in this window.
+
+### Comparison to Baselines
+- Weekly LLM outperformed equal-weight and inverse-volatility baselines on all key risk-adjusted metrics.
+- Weekly momentum baseline still outperformed LLM (Sortino 2.98 vs 2.84).
+
+### Visualizations
+- `figures/equity_curves.png`: cumulative wealth trajectories.
+- `figures/drawdown_curves.png`: drawdown severity over time.
+- `figures/return_boxplot.png`: distributional comparison of daily returns.
+
+### Surprises and Insights
+- Memoryless weekly LLM matched pos-aware weekly cumulative return closely, but with much higher turnover.
+- Daily LLM underperformed weekly/monthly despite more frequent opportunities, consistent with noise-chasing concerns.
+
+### Error Analysis
+Failure modes observed in trade logs:
+- Occasional weight concentration persistence during trend regimes.
+- Weekly decisions often repeated unchanged allocations for multiple rebalance points.
+  - Example: 2025-01-02 and 2025-01-10 had identical top-5 allocations for weekly pos-aware run.
+- This behavior reduced churn but may miss abrupt reversals.
+
+### Limitations
+- Single model family (`gpt-4.1`) and single equity universe (15 tickers).
+- Feature set is technical-only; no company-specific news stream fused into daily prompts.
+- Test horizon is recent and limited (2025-2026 Jan), so regime diversity is moderate.
+- No explicit market impact/slippage model beyond proportional transaction costs.
+- Bootstrap CI for Sortino differences is wide; more years/markets needed for stronger inference.
+
+## 6. Conclusions
+### Summary
+In this controlled experiment, LLM trading performance improved when decisions were made less frequently (weekly/monthly) versus daily reallocation. The strongest LLM variant was weekly position-aware, which delivered better risk-adjusted performance and lower turnover than daily LLM.
+
+### Implications
+- Practical: LLM portfolio agents may be better used as medium-horizon allocators rather than day-trading controllers.
+- Methodological: cadence should be a standard ablation axis in LLM trading papers.
+
+### Confidence in Findings
+Moderate confidence. Results are reproducible in this workspace and robust across transaction-cost sensitivity, but broader validation across assets/periods/models is still needed.
+
+## 7. Next Steps
+### Immediate Follow-ups
+1. Add a second model (`gpt-5` or Claude Sonnet 4.5) for cross-model cadence generalization.
+2. Add explicit news/fundamental context with strict point-in-time joins.
+3. Expand test to rolling windows across 2016-2026 for regime-stratified inference.
+
+### Alternative Approaches
+- Compare LLM cadence policies to RL policies trained per cadence in same environment.
+- Use hierarchical agent setup (analyst + risk manager + executor) from TradingAgents architecture.
+
+### Broader Extensions
+- Apply cadence study to crypto and futures portfolios.
+- Test policy transfer from US equities to international equity universes.
+
+### Open Questions
+- Is the weekly advantage persistent under macro shock periods (e.g., 2020-like volatility)?
+- Does position-awareness matter more when transaction costs increase further?
+
+## 8. Validation Checklist
+### Code Validation
+- [x] Full script runs without errors.
+- [x] Re-ran experiment multiple times (identical `tc=5` outputs).
+- [x] Random seed and deterministic sampling set.
+- [x] No hardcoded absolute paths.
+- [x] No look-ahead in feature construction (all shifted by 1 day).
+
+### Scientific Validation
+- [x] Non-parametric tests used due non-normal return differences.
+- [x] Assumption checks included (Shapiro p-values reported).
+- [x] Alternative explanations discussed.
+- [x] Limitations documented.
+
+### Documentation Validation
+- [x] All required sections included.
+- [x] Plot paths and output files documented.
+- [x] Reproducibility instructions provided in README.
+
+## 9. References
+- Workspace literature review: `literature_review.md`
+- Resources catalog: `resources.md`
+- StockBench (2025), FinPos (2025), FINSABER (2025), Look-Ahead-Bench (2026), FinMem (2023), TradingAgents (2024), FinAgent (2024)
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+# Planning: Refining LLM Trading Toward Long-Horizon Decisions
+
+## Motivation &amp; Novelty Assessment
+
+### Why This Research Matters
+Most LLM trading agents are evaluated on dense daily actions, which can overfit noise and produce high turnover with weak risk-adjusted performance. If longer-horizon decisions are superior, practitioners can reduce trading frequency, transaction costs, and behavioral instability while improving real deployability. This directly affects retail quant tooling, institutional prototyping, and benchmark design for financial LLM agents.
+
+### Gap in Existing Work
+The literature shows that many short-window gains degrade in realistic long-run tests (StockBench, FINSABER), and position-aware formulations help stability (FinPos). However, a controlled experiment that isolates **decision cadence** (daily vs weekly vs monthly) under the same LLM model, same universe, and same prompt family is still limited.
+
+### Our Novel Contribution
+We test a single real LLM policy under matched conditions while varying only rebalance horizon and position-awareness. This provides a clean estimate of whether long-horizon decision-making improves risk-adjusted outcomes and trading stability relative to short-term optimization.
+
+### Experiment Justification
+- Experiment 1: Daily vs weekly vs monthly LLM rebalancing.
+  Why needed: Directly tests the core hypothesis by isolating decision horizon.
+- Experiment 2: Position-aware vs memoryless LLM policy at weekly cadence.
+  Why needed: Tests whether explicit continuity is a mechanism behind long-horizon gains.
+- Experiment 3: Baseline comparison (equal-weight buy-and-hold, momentum, volatility-parity).
+  Why needed: Ensures LLM results are interpreted against practical non-LLM alternatives.
+
+## Research Question
+Do LLM trading agents perform better, on risk-adjusted and drawdown-aware metrics, when making longer-horizon portfolio decisions (weekly/monthly) than short-term daily decisions?
+
+## Background and Motivation
+Recent papers in this workspace (StockBench 2025, FinPos 2025, FINSABER 2025, Look-Ahead-Bench 2026) indicate that naive daily LLM trading often fails to beat passive baselines and may exploit leakage or short-window noise. Long-horizon and position-aware methods appear more robust, but controlled cadence studies are sparse. This project targets that methodological gap with a reproducible, point-in-time simulation using local market data from 2010-2026.
+
+## Hypothesis Decomposition
+- H1 (comparative): Weekly and monthly LLM strategies have higher Sortino ratio than daily LLM strategy on 2024-2026 test data.
+- H2 (risk): Weekly/monthly LLM strategies have lower maximum drawdown and turnover than daily LLM.
+- H3 (mechanistic): Position-aware prompting improves weekly strategy stability (lower turnover, lower drawdown) versus memoryless prompting.
+- H0 (null): No statistically significant difference in risk-adjusted performance across decision cadences.
+
+Independent variables:
+- Rebalance cadence: 1D, 5D, 21D.
+- Prompt style: position-aware vs memoryless.
+
+Dependent variables:
+- Return metrics: cumulative return, annualized return.
+- Risk-adjusted metrics: Sharpe, Sortino, Calmar.
+- Risk/stability metrics: max drawdown, annualized volatility, turnover.
+
+Success criteria:
+- Support for hypothesis if at least one long-horizon cadence (5D or 21D) beats daily by &gt;=0.20 Sortino and shows lower turnover, with consistent directional advantage in bootstrap CI.
+
+## Proposed Methodology
+
+### Approach
+Use a single LLM (OpenAI GPT-4.1) as a portfolio allocator over a fixed US equity universe (15 tickers). At each rebalance date, provide only lagged technical features and current positions (for position-aware runs), require strict JSON allocations, and execute next-period returns with transaction-cost penalty.
+
+### Experimental Steps
+1. Validate and preprocess local OHLCV data; compute lagged features per ticker.
+   Rationale: ensure no look-ahead leakage and stable feature inputs.
+2. Implement non-LLM baselines (equal-weight buy-and-hold, momentum top-k, inverse-volatility).
+   Rationale: contextualize LLM outcomes against realistic standards.
+3. Implement LLM allocation engine with response caching.
+   Rationale: reproducibility, cost control, robust retry handling.
+4. Run Experiment 1 (cadence comparison) over identical test period.
+   Rationale: direct test of hypothesis.
+5. Run Experiment 2 (position-aware ablation) at weekly cadence.
+   Rationale: evaluate mechanism for long-horizon improvement.
+6. Compute metrics, statistical tests, and visualizations.
+   Rationale: quantify significance and practical effect.
+
+### Baselines
+- Equal-weight buy-and-hold (monthly rebalance only for cash normalization).
+- Momentum top-5 (63-day momentum, same cadence grid).
+- Inverse-volatility parity (21-day volatility, same cadence grid).
+
+### Evaluation Metrics
+- Cumulative return (CR), annualized return (AnnRet).
+- Sharpe, Sortino, Calmar.
+- Maximum drawdown (MDD), annualized volatility.
+- Turnover and number of trades.
+
+Why: These match literature standards and directly measure risk-adjusted long-horizon quality.
+
+### Statistical Analysis Plan
+- Primary comparison: paired daily return differences between strategies on common dates.
+- Tests:
+  - Wilcoxon signed-rank (non-normal robustness).
+  - Circular block bootstrap (95% CI) for Sortino difference.
+- Significance threshold: alpha = 0.05.
+- Effect size: Cliff&#39;s delta on daily return differences.
+
+## Expected Outcomes
+- If hypothesis holds: weekly/monthly LLM policies outperform daily LLM on Sortino and MDD, with lower turnover.
+- If partially supported: returns may be similar, but long-horizon strategies still win on stability/risk metrics.
+- If refuted: daily LLM remains best risk-adjusted policy, suggesting signal half-life is very short.
+
+## Timeline and Milestones
+- Phase 0-1 planning: completed in this session.
+- Phase 2 setup + data validation: ~20 min.
+- Phase 3 implementation: ~60 min.
+- Phase 4 experiment runs with API calls: ~60-90 min (with caching).
+- Phase 5 analysis + plots: ~30 min.
+- Phase 6 reporting + validation: ~30 min.
+
+## Potential Challenges
+- API rate limits or malformed JSON outputs.
+  Mitigation: retry/backoff, schema checks, cache + fallback equal-weight output.
+- Regime dependency due to limited test years.
+  Mitigation: sub-period analysis and bootstrap CIs.
+- Transaction cost assumptions influence absolute performance.
+  Mitigation: fixed cost sensitivity checks.
+
+## Success Criteria
+- End-to-end reproducible pipeline runs from raw data to report.
+- Results include real LLM API outputs, not simulated decisions.
+- REPORT.md provides full metrics table, stats tests, plots, and limitations.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+# Literature Review: Refining LLM Trading Toward Long-Horizon Decisions
+
+## Review Scope
+
+### Research Question
+Do LLM trading agents perform better when optimized for longer-horizon, position-aware decisions rather than short-term day-to-day profit?
+
+### Inclusion Criteria
+- LLM-agent-based trading or financial decision systems
+- Benchmarks with sequential decision making (not only static QA)
+- Works reporting portfolio/risk metrics (return, Sharpe/Sortino, drawdown)
+- Practical code availability or reproducible setup
+
+### Exclusion Criteria
+- Pure sentiment classification without trading evaluation
+- Static financial QA with no sequential decision loop
+- Non-financial agent work without market environment testing
+
+### Time Frame
+- Primary focus: 2023-2026
+
+### Sources
+- Paper-finder skill output (`paper_search_results/*.jsonl`)
+- arXiv PDFs downloaded to `papers/`
+- GitHub baseline repositories (`code/`)
+
+## Search Log
+
+| Date | Query | Source | Results | Notes |
+|------|-------|--------|---------|------|
+| 2026-02-22 | `LLM agents long-term trading decisions finance` | paper-finder | 71 | 7 high-relevance papers (`relevance &gt;= 2`) |
+| 2026-02-22 | title-matched arXiv retrieval | arXiv API | 10 downloaded | Added key baseline papers (FinMem/TradingAgents/FinAgent) |
+
+## Screening Results
+
+- Title/abstract screened: 71
+- Full papers downloaded: 10
+- Deep-read with PDF chunker: 4
+  - `StockBench`
+  - `FinPos`
+  - `Can LLM-based Financial Investing Strategies Outperform the Market in Long Run?` (FINSABER)
+  - `Look-Ahead-Bench`
+
+## Key Papers
+
+### 1) StockBench (2025)
+- **Authors**: Yanxu Chen et al.
+- **Source**: arXiv 2510.02209
+- **Key Contribution**: Contamination-aware benchmark for realistic multi-month LLM trading.
+- **Methodology**: Daily sequential agent decisions using price/fundamental/news signals.
+- **Datasets Used**: Dow Jones stocks with point-in-time style market inputs.
+- **Baselines**: Buy-and-hold and multiple frontier LLMs.
+- **Metrics**: Cumulative return, maximum drawdown, Sortino ratio, volatility.
+- **Key Result**: Most LLM agents fail to consistently beat buy-and-hold; some models improve risk-adjusted behavior.
+- **Code**: https://github.com/ChenYXxxx/stockbench
+- **Relevance**: Strong evidence that long-horizon evaluation is necessary and harder than short-run tests suggest.
+
+### 2) FinPos (2025)
+- **Authors**: Bijia Liu, Ronghao Dang
+- **Source**: arXiv 2510.27251
+- **Key Contribution**: Position-aware task formulation for continuous portfolio states.
+- **Methodology**: Dual-stage decision (direction + risk/size), multi-timescale reward reflection.
+- **Datasets Used**: Multi-stock US equities with Yahoo Finance style inputs and macro/news context.
+- **Baselines**: Rule-based (MACD/RSI), RL (A2C/DQN/PPO), LLM agents (FinMem/FinCon/TradingAgents/FinAgent).
+- **Metrics**: CR, Sharpe, MDD, Calmar.
+- **Key Result**: Position-aware architecture improves stability and risk-adjusted outcomes vs one-step agents.
+- **Code**: not clearly released in paper text.
+- **Relevance**: Directly supports the hypothesis that longer-term, position continuity helps LLM trading systems.
+
+### 3) Can LLM-based Financial Investing Strategies Outperform the Market in Long Run? (FINSABER, 2025)
+- **Authors**: Weixian Waylon Li et al.
+- **Source**: arXiv 2505.07078
+- **Key Contribution**: Long-horizon robustness study over broader universe and longer windows.
+- **Methodology**: Two-decade-style backtesting framework with regime analysis and broad symbol coverage.
+- **Datasets Used**: US equities universe (S&amp;P 500-centric setup), external financial/news data integrations.
+- **Baselines**: Buy-and-hold, factor/rule strategies, RL, and LLM-agent baselines (FinMem/FinAgent/TradingAgents).
+- **Metrics**: Sharpe, Sortino, alpha, beta, CR, MDD, volatility.
+- **Key Result**: Apparent gains from narrow windows deteriorate under broad long-run testing.
+- **Code**: https://github.com/waylonli/FINSABER
+- **Relevance**: Core support for the proposed research direction and robust experimental design requirements.
+
+### 4) Look-Ahead-Bench (2026)
+- **Author**: Mostapha Benhenda
+- **Source**: arXiv 2601.13770
+- **Key Contribution**: Standardized benchmark for measuring temporal leakage/look-ahead bias.
+- **Methodology**: Practical workflow evaluation with decay analysis across market regimes.
+- **Datasets Used**: S&amp;P 500-like setup with point-in-time constraints.
+- **Baselines**: Market-cap weighted, momentum, buy-and-hold style quantitative baselines + standard vs PiT LLMs.
+- **Metrics**: Alpha decay and regime robustness.
+- **Key Result**: Conventional LLMs exhibit stronger look-ahead bias; PiT models are more stable.
+- **Code**: https://github.com/benstaf/lookaheadbench
+- **Relevance**: Essential for preventing false conclusions in short-term backtests.
+
+### 5) FinMem (2023)
+- Layered memory + persona design for LLM trading agents.
+- Strong historical baseline for architecture comparisons.
+
+### 6) TradingAgents (2024)
+- Open multi-agent framework inspired by trading-firm organization.
+- Good engineering baseline for modular long-horizon experiments.
+
+### 7) FinAgent (2024)
+- Multimodal (text/chart/numeric) foundation agent with tool augmentation.
+- Useful baseline for integrating multiple signal modalities.
+
+### 8) HedgeAgents (2025)
+- Hedging-aware multi-agent design for improved robustness during volatile periods.
+- Useful for risk-aware portfolio-level comparisons.
+
+### 9) Hierarchical Organization Simulacra (2024)
+- Simulates hierarchical investment organizations over long history and many companies.
+- Highlights influence of prompt/role design on behavior and profitability.
+
+### 10) Behavioral Consistency Validation (2026)
+- Examines whether agent style switching aligns with behavioral finance theory.
+- Useful for evaluating realism and stability of long-run agent behavior.
+
+## Common Methodologies
+
+- **Role-based multi-agent decomposition**: TradingAgents, FinPos, HedgeAgents, FinAgent.
+- **Memory/reflection loops**: FinMem, FinPos, FinCon-style systems.
+- **Point-in-time or contamination-aware evaluation**: StockBench, Look-Ahead-Bench, FINSABER.
+- **Hybrid signal fusion**: price + technical indicators + macro/news/fundamentals.
+
+## Standard Baselines
+
+- **Passive**: Buy-and-hold (must include).
+- **Rule-based**: MACD, RSI, SMA/WMA crossover, momentum.
+- **RL baselines**: A2C/DQN/PPO and FinRL pipelines.
+- **LLM-agent baselines**: FinMem, TradingAgents, FinAgent/FinCon-style variants.
+
+## Evaluation Metrics
+
+- **Return metrics**: Cumulative return, annualized return.
+- **Risk-adjusted metrics**: Sharpe, Sortino, Calmar.
+- **Risk metrics**: Maximum drawdown, volatility.
+- **Bias/validity metrics**: Alpha decay/look-ahead robustness by regime.
+
+## Datasets in the Literature
+
+- **US equities (Dow/S&amp;P universes)**: Common in StockBench, FinPos, FINSABER, Look-Ahead-Bench.
+- **Price + fundamental + news combinations**: Typical for LLM-agent systems.
+- **Sentiment corpora (e.g., finance tweets/news)**: Used for auxiliary signals and LLM adaptation.
+
+## Gaps and Opportunities
+
+1. Many claimed gains are sensitive to short windows, limited symbol sets, or leakage.
+2. Position continuity and risk-aware sizing are under-studied relative to directional prediction.
+3. Behavioral realism and regime adaptation are not yet standard evaluation requirements.
+4. Few studies provide robust out-of-period, multi-regime, and multi-universe comparisons simultaneously.
+
+## Recommendations for Our Experiment
+
+- **Recommended datasets**:
+  - `datasets/market_daily_ohlcv_2010_2026/` for long-run multi-asset backtesting.
+  - `datasets/twitter_financial_news_sentiment/` for auxiliary sentiment context.
+- **Recommended baselines**:
+  - Buy-and-hold, MACD/RSI/SMA crossover, FinRL PPO/A2C.
+  - LLM-agent baselines adapted from TradingAgents and/or FinMem-style memory policies.
+- **Recommended metrics**:
+  - CR, Sharpe, Sortino, MDD, Calmar, volatility.
+  - Regime-sliced performance and alpha-decay style leakage diagnostics.
+- **Methodological considerations**:
+  - Enforce point-in-time data boundaries.
+  - Use time-based splits and rolling/expanding-window evaluation.
+  - Compare daily vs weekly/monthly decision cadence to test the hypothesis directly.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: Erik Ely and Idea-Explorer
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{Erik Ely and Idea-Explorer}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .codex/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.

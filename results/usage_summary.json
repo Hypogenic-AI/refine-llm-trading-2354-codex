@@ -1,0 +1,37 @@
+{
+  "equal_weight": {
+    "api_calls": 0,
+    "token_total": 0,
+    "n_rebalances": 13
+  },
+  "momentum_weekly": {
+    "api_calls": 0,
+    "token_total": 0,
+    "n_rebalances": 54
+  },
+  "invvol_weekly": {
+    "api_calls": 0,
+    "token_total": 0,
+    "n_rebalances": 54
+  },
+  "llm_daily_posaware": {
+    "api_calls": 0,
+    "token_total": 524299,
+    "n_rebalances": 270
+  },
+  "llm_weekly_posaware": {
+    "api_calls": 0,
+    "token_total": 105209,
+    "n_rebalances": 54
+  },
+  "llm_monthly_posaware": {
+    "api_calls": 0,
+    "token_total": 25380,
+    "n_rebalances": 13
+  },
+  "llm_weekly_memoryless": {
+    "api_calls": 0,
+    "token_total": 97833,
+    "n_rebalances": 54
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "llm_weekly_posaware_vs_llm_daily_posaware": {
+    "n_common_days": 270,
+    "mean_daily_diff": 0.0003175853968636874,
+    "shapiro_p": 5.987216197521568e-13,
+    "wilcoxon_stat": 14982.0,
+    "wilcoxon_p": 0.027245560446473954,
+    "sortino_diff_bootstrap_ci95": [
+      -0.354769132105481,
+      2.07309539902848
+    ],
+    "cliffs_delta": 0.012263374485596707
+  },
+  "llm_monthly_posaware_vs_llm_daily_posaware": {
+    "n_common_days": 270,
+    "mean_daily_diff": 0.00020221799799336382,
+    "shapiro_p": 1.807504076926066e-12,
+    "wilcoxon_stat": 17167.0,
+    "wilcoxon_p": 0.4382482248458702,
+    "sortino_diff_bootstrap_ci95": [
+      -1.0142443342721588,
+      1.7395905375209446
+    ],
+    "cliffs_delta": 0.0041015089163237315
+  },
+  "llm_weekly_posaware_vs_llm_weekly_memoryless": {
+    "n_common_days": 270,
+    "mean_daily_diff": -4.5071720927459885e-06,
+    "shapiro_p": 2.5149790094893953e-11,
+    "wilcoxon_stat": 13058.0,
+    "wilcoxon_p": 0.5786635543514032,
+    "sortino_diff_bootstrap_ci95": [
+      -0.44379151686454155,
+      0.8870907768075518
+    ],
+    "cliffs_delta": -0.004458161865569273
+  },
+  "best_strategy_by_sortino": "momentum_weekly"
+}

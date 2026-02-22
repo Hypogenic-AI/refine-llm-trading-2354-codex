@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented a controlled cadence study for LLM portfolio allocation using real \gptmodel calls on U.S. equity daily data. By fixing model, features, constraints, and evaluation dates, we isolated action frequency as the main variable.
+
+Weekly and monthly LLM policies outperform daily LLM on risk-adjusted metrics and turnover, with weekly position-aware giving the strongest LLM result (Sortino 2.835 vs 2.165 daily). Weekly-vs-daily daily-return differences are significant under Wilcoxon testing ($p=0.0272$), while monthly improvements are practical but not statistically significant in this window.
+
+The central takeaway is that LLM agents in this setup work better as medium-horizon allocators than as daily controllers. Future work should test cross-model generalization (e.g., GPT-5 and Claude-class models), add point-in-time news/fundamental context, and expand to rolling multi-regime evaluations across longer histories and additional asset classes.

@@ -1,0 +1,25 @@
+\section{Methodology}
+\label{sec:method}
+
+\para{Task definition.} At each rebalance date $t$, the agent receives lagged per-ticker features and outputs long-only portfolio weights $\vw_t\in\R^{15}$ with $\sum_i w_{t,i}=1$ and $0\le w_{t,i}\le0.35$. The portfolio is held until the next rebalance. Daily strategy return is net of transaction costs applied on rebalance days.
+
+\para{Data.} The primary dataset is \marketdata: Yahoo Finance daily OHLCV from 2010-01-04 to 2026-01-30 (60,660 rows, 15 tickers). We build lagged technical features per ticker: 1/5/21-day returns, 21-day volatility, 63-day momentum, and 63-day drawdown proxy. All features are shifted by one day to prevent look-ahead leakage. The fixed out-of-sample evaluation window is 2025-01-02 to 2026-01-30 (270 trading days). We also retain \sentdata (9,543 train / 2,388 validation) as auxiliary future context but do not feed it into the current allocator.
+
+\para{Compared methods.} We compare five LLM policies and three non-LLM baselines:
+\begin{itemize}
+    \item LLM daily position-aware (\dailyllm).
+    \item LLM weekly position-aware (\posaware).
+    \item LLM monthly position-aware (\monthlyllm).
+    \item LLM weekly memoryless (\memoryless).
+    \item Equal-weight buy-and-hold (\ew).
+    \item Weekly momentum top-$k$ (\momwk, $k=5$, 63-day momentum).
+    \item Weekly inverse-volatility parity (\invvolwk, 21-day volatility).
+\end{itemize}
+
+\para{LLM configuration.} We use real \gptmodel API calls (OpenAI SDK 2.21.0), temperature 0.0, JSON weight output, and caching for deterministic reruns. Main run usage is 752,721 tokens across about 391 rebalance decisions.
+
+\para{Backtest protocol.} We apply a 5 bps proportional \tc as default and run sensitivity checks at 0 and 10 bps. Rebalance cadence is the independent variable; model family, feature schema, constraints, and test dates are fixed.
+
+\para{Metrics and statistics.} We report cumulative return, annualized return, annualized volatility, Sharpe, Sortino, \mdd, Calmar, and turnover. For inference, we use paired Wilcoxon signed-rank tests on aligned daily returns, Cliff's delta as effect size, and circular block bootstrap (1,000 samples, block size 5) for Sortino differences.
+
+\para{Implementation details.} Experiments run in Python 3.12.2 with pandas 2.3.1, numpy 2.3.5, scipy 1.17.0, matplotlib 3.10.8, and seaborn 0.13.2. Missingness in engineered features comes only from rolling-window warmup (max 1.583\% for 63-day momentum), with no raw OHLCV missing values and no duplicates.

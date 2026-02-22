@@ -1,0 +1,10 @@
+\section{Related Work}
+\label{sec:related}
+
+\para{LLM trading benchmarks and long-run realism.} Recent benchmark papers show that short-window gains often weaken under realistic horizons. StockBench emphasizes contamination-aware, multi-month evaluation and reports that many LLM agents do not reliably beat passive alternatives \citep{chen2025stockbench}. FINSABER extends this concern over longer horizons and broader universes \citep{li2025finsaber}. Look-Ahead-Bench further highlights temporal leakage as a major threat to validity \citep{benhenda2026lookaheadbench}. We follow this line by using lagged features and an out-of-sample recent window.
+
+\para{Position and memory in financial agents.} FinPos argues that position-aware formulations improve stability and risk-adjusted behavior \citep{liu2025finpos}. FinMem introduces memory-centric LLM finance agents \citep{zhang2023finmem}, and TradingAgents/FinAgent develop multi-role systems for richer decision pipelines \citep{xiao2024tradingagents,huang2024finagent}. Our study is complementary: we do not introduce a new architecture, but instead isolate cadence and test whether position-awareness changes outcomes at fixed weekly cadence.
+
+\para{Baseline framing.} Prior work consistently recommends comparing LLM agents against transparent quantitative baselines such as momentum and volatility-based allocators \citep{li2025finsaber,chen2025stockbench}. We adopt equal-weight, weekly momentum top-$k$, and inverse-volatility parity baselines to contextualize LLM performance.
+
+\para{Our position.} Unlike prior papers that vary many knobs at once, we vary one primary control variable: action frequency. This design directly addresses whether medium-horizon control is a better operating point for LLM portfolio allocation.
